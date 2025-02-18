@@ -18,7 +18,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.jdbc.JdbcTestUtils;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @SpringBatchTest
@@ -52,7 +56,11 @@ class BillingJobApplicationTests {
 
         // then
         Assertions.assertEquals(ExitStatus.COMPLETED, jobExecution.getExitStatus());
-        Assertions.assertTrue(Files.exists(Paths.get("staging", "billing-2023-01.csv")));
+        assertTrue(Files.exists(Paths.get("staging", "billing-2023-01.csv")));
         Assertions.assertEquals(1000, JdbcTestUtils.countRowsInTable(jdbcTemplate,"BILLING_DATA"));
+
+        Path billingReport = Paths.get("staging", "billing-report-2023-01.csv");
+        assertTrue(Files.exists(billingReport));
+        assertEquals(781, Files.lines(billingReport).count());
     }
 }
