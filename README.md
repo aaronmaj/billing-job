@@ -1,4 +1,5 @@
-## Billing job for Spring Cellular - Spring Batch
+# Billing job for Spring Cellular - Spring Batch
+A Spring Batch application for practising Spring Batch course from Spring Academy.
 
 ### Description
 This project is a simple Spring Batch application for practising Spring Batch course from Spring Academy.
