@@ -5,3 +5,4 @@ set -e
 
 docker exec postgres psql -f /mnt/scripts/sql/schema-drop-postgresql.sql -U postgres
 docker exec postgres psql -f /mnt/scripts/sql/schema-postgresql.sql -U postgres
+docker exec postgres psql -f /mnt/scripts/sql/schema-billing.sql -U postgres

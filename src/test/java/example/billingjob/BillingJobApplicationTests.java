@@ -14,6 +14,8 @@ import org.springframework.batch.test.context.SpringBatchTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.jdbc.JdbcTestUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -29,10 +31,13 @@ class BillingJobApplicationTests {
     @Autowired
     private JobRepositoryTestUtils jobRepositoryTestUtils;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     public void setUp(){
         jobRepositoryTestUtils.removeJobExecutions();
+        JdbcTestUtils.deleteFromTables(jdbcTemplate, "BILLING_DATA");
     }
 
     @Test
@@ -48,5 +53,6 @@ class BillingJobApplicationTests {
         // then
         Assertions.assertEquals(ExitStatus.COMPLETED, jobExecution.getExitStatus());
         Assertions.assertTrue(Files.exists(Paths.get("staging", "billing-2023-01.csv")));
+        Assertions.assertEquals(1000, JdbcTestUtils.countRowsInTable(jdbcTemplate,"BILLING_DATA"));
     }
 }
