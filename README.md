@@ -18,4 +18,20 @@ docker exec postgres psql -U postgres -c 'select * from BATCH_JOB_EXECUTION_PARA
 docker exec postgres psql -U postgres -c 'select * from BATCH_STEP_EXECUTION;'
 ```
 
+
+### Inpect the BATCH_JOB_EXECUTION table
+
+```shell
+docker exec postgres psql -U postgres -c 'select job_instance_id, job_execution_id, status from BATCH_JOB_EXECUTION;'
+```
+
+### Inpect the BATCH_STEP_EXECUTION table
+
+```shell
+docker docker exec postgres psql -U postgres -c 'select step_execution_id, job_execution_id, step_name, status, read_count, write_count, commit_count, rollback_count  from BATCH_STEP_EXECUTION;''
+``` 
+
+### Run the application
+```shell
 java -jar target/billing-job-0.0.1-SNAPSHOT.jar input.file=src/main/resources/billing-2023-01.csv
+```

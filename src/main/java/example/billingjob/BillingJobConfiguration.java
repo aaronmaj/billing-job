@@ -1,5 +1,7 @@
 package example.billingjob;
 
+import javax.sql.DataSource;
+
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -23,11 +25,17 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.jdbc.core.DataClassRowMapper;
 import org.springframework.jdbc.support.JdbcTransactionManager;
-
-import javax.sql.DataSource;
+import org.springframework.batch.item.file.FlatFileParseException;
 
 @Configuration
 public class BillingJobConfiguration {
+
+    @Bean
+    public Step step1(JobRepository jobRepository, JdbcTransactionManager transactionManager) {
+        return new StepBuilder("filePreparation", jobRepository)
+                .tasklet(new FilePreparationTasklet(), transactionManager)
+                .build();
+    }
 
     @Bean
     public Job job(JobRepository jobRepository, Step step1, Step step2, Step step3) {
@@ -36,19 +44,6 @@ public class BillingJobConfiguration {
                 .next(step2)
                 .next(step3)
                 .build();
-    }
-
-    @Bean
-    public JdbcTransactionManager transactionManager(DataSource dataSource) {
-        return new JdbcTransactionManager(dataSource);
-    }
-
-    @Bean
-    public Step step1(JobRepository jobRepository, JdbcTransactionManager transactionManager) {
-        return
-                new StepBuilder("filePreparation", jobRepository)
-                        .tasklet(new FilePreparationTasklet(), transactionManager)
-                        .build();
     }
 
     @Bean
@@ -64,37 +59,36 @@ public class BillingJobConfiguration {
     }
 
     @Bean
-    @StepScope
     public JdbcBatchItemWriter<BillingData> billingDataTableWriter(DataSource dataSource) {
+        String sql = "insert into BILLING_DATA values (:dataYear, :dataMonth, :accountId, :phoneNumber, :dataUsage, :callDuration, :smsCount)";
         return new JdbcBatchItemWriterBuilder<BillingData>()
                 .dataSource(dataSource)
-                .sql("INSERT INTO BILLING_DATA VALUES (:dataYear, :dataMonth, :accountId, :phoneNumber, :dataUsage, :callDuration, :smsCount)")
+                .sql(sql)
                 .beanMapped()
                 .build();
     }
 
     @Bean
-    public Step step2(JobRepository jobRepository,
-                      JdbcTransactionManager transactionManager,
-                      FlatFileItemReader<BillingData> billingDataFileReader,
-                      JdbcBatchItemWriter<BillingData> billingDataTableWriter) {
-        return
-                new StepBuilder("fileIngestion", jobRepository)
-                        .<BillingData, BillingData>chunk(100, transactionManager)
-                        .reader(billingDataFileReader)
-                        .writer(billingDataTableWriter)
-                        .transactionManager(transactionManager)
-                        .build();
+    public Step step2(
+            JobRepository jobRepository, JdbcTransactionManager transactionManager,
+            ItemReader<BillingData> billingDataFileReader,
+            ItemWriter<BillingData> billingDataTableWriter,
+            BillingDataSkipListener skipListener) {
+        return new StepBuilder("fileIngestion", jobRepository)
+                .<BillingData, BillingData>chunk(100, transactionManager)
+                .reader(billingDataFileReader)
+                .writer(billingDataTableWriter)
+                .faultTolerant()
+                .skip(FlatFileParseException.class)
+                .skipLimit(10)
+                .listener(skipListener)
+                .build();
     }
 
     @Bean
     @StepScope
-    public JdbcCursorItemReader<BillingData> billingDataTableReader(
-            DataSource dataSource,
-            @Value("#{jobParameters['data.year']}") Integer year,
-            @Value("#{jobParameters['data.month']}") Integer month) {
-
-        String sql = String.format("SELECT * FROM BILLING_DATA WHERE DATA_YEAR = %d AND DATA_MONTH = %d", year, month);
+    public JdbcCursorItemReader<BillingData> billingDataTableReader(DataSource dataSource, @Value("#{jobParameters['data.year']}") Integer year, @Value("#{jobParameters['data.month']}") Integer month) {
+        String sql = String.format("select * from BILLING_DATA where DATA_YEAR = %d and DATA_MONTH = %d", year, month);
         return new JdbcCursorItemReaderBuilder<BillingData>()
                 .name("billingDataTableReader")
                 .dataSource(dataSource)
@@ -110,30 +104,34 @@ public class BillingJobConfiguration {
 
     @Bean
     @StepScope
-    public FlatFileItemWriter<ReportingData> billingDataFileWriter(
-            @Value("#{jobParameters['output.file']}") String outputFile
-    ) {
+    public FlatFileItemWriter<ReportingData> billingDataFileWriter(@Value("#{jobParameters['output.file']}") String outputFile) {
         return new FlatFileItemWriterBuilder<ReportingData>()
-                .name("billingDataFileWriter")
                 .resource(new FileSystemResource(outputFile))
+                .name("billingDataFileWriter")
                 .delimited()
                 .names("billingData.dataYear", "billingData.dataMonth", "billingData.accountId", "billingData.phoneNumber", "billingData.dataUsage", "billingData.callDuration", "billingData.smsCount", "billingTotal")
                 .build();
     }
 
-
     @Bean
-    public Step step3(JobRepository jobRepository,
-                      JdbcTransactionManager transactionManager,
+    public Step step3(JobRepository jobRepository, JdbcTransactionManager transactionManager,
                       ItemReader<BillingData> billingDataTableReader,
                       ItemProcessor<BillingData, ReportingData> billingDataProcessor,
                       ItemWriter<ReportingData> billingDataFileWriter) {
-        return
-                new StepBuilder("reportGeneration", jobRepository)
-                        .<BillingData, ReportingData>chunk(100, transactionManager)
-                        .reader(billingDataTableReader)
-                        .processor(billingDataProcessor)
-                        .writer(billingDataFileWriter)
-                        .build();
+        return new StepBuilder("reportGeneration", jobRepository)
+                .<BillingData, ReportingData>chunk(100, transactionManager)
+                .reader(billingDataTableReader)
+                .processor(billingDataProcessor)
+                .writer(billingDataFileWriter)
+                .build();
     }
+
+
+    @Bean
+    @StepScope
+    public BillingDataSkipListener skipListener(@Value("#{jobParameters['skip.file']}") String skippedFile) {
+        return new BillingDataSkipListener(skippedFile);
+    }
+
+
 }
