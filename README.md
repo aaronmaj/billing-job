@@ -35,3 +35,12 @@ docker docker exec postgres psql -U postgres -c 'select step_execution_id, job_e
 ```shell
 java -jar target/billing-job-0.0.1-SNAPSHOT.jar input.file=src/main/resources/billing-2023-01.csv
 ```
+### Run the batch with with failing reads skipped
+```shell
+java -jar target/billing-job-0.0.1-SNAPSHOT.jar input.file=input/billing-2023-03.csv output.file=staging/billing-report-2023-03.csv skip.file=staging/billing-data-skip-2023-03.psv data.year=2023 data.month=3
+```
+
+### Run the application with with retry
+```shell
+java -jar target/billing-job-0.0.1-SNAPSHOT.jar input.file=input/billing-2023-04.csv output.file=staging/billing-report-2023-04.csv skip.file=staging/billing-data-skip-2023-04.psv data.year=2023 data.month=4
+```

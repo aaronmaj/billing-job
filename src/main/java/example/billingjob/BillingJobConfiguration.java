@@ -31,6 +31,11 @@ import org.springframework.batch.item.file.FlatFileParseException;
 public class BillingJobConfiguration {
 
     @Bean
+    public JdbcTransactionManager transactionManager(DataSource dataSource) {
+        return new JdbcTransactionManager(dataSource);
+    }
+
+    @Bean
     public Step step1(JobRepository jobRepository, JdbcTransactionManager transactionManager) {
         return new StepBuilder("filePreparation", jobRepository)
                 .tasklet(new FilePreparationTasklet(), transactionManager)
@@ -98,8 +103,8 @@ public class BillingJobConfiguration {
     }
 
     @Bean
-    public BillingDataProcessor billingDataProcessor() {
-        return new BillingDataProcessor();
+    public BillingDataProcessor billingDataProcessor(PricingService pricingService) {
+        return new BillingDataProcessor(pricingService);
     }
 
     @Bean
@@ -123,15 +128,20 @@ public class BillingJobConfiguration {
                 .reader(billingDataTableReader)
                 .processor(billingDataProcessor)
                 .writer(billingDataFileWriter)
+                .faultTolerant()
+                .retry(PricingException.class)
+                .retryLimit(100)
                 .build();
     }
-
-
     @Bean
     @StepScope
     public BillingDataSkipListener skipListener(@Value("#{jobParameters['skip.file']}") String skippedFile) {
         return new BillingDataSkipListener(skippedFile);
     }
 
+    @Bean
+    public PricingService pricingService() {
+        return  new PricingService();
+    }
 
 }
